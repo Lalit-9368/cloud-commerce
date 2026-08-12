@@ -1,0 +1,99 @@
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  packages: read
+
+jobs:
+  release:
+    name: Release images to Amazon ECR
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: frontend
+            context: ./frontend
+          - service: auth-service
+            context: ./services/auth-service
+          - service: catalog-service
+            context: ./services/catalog-service
+          - service: checkout-service
+            context: ./services/checkout-service
+          - service: payment-service
+            context: ./services/payment-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: cloud-commerce/${{ matrix.service }}:${{ steps.meta.outputs.tag }}
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: cloud-commerce/${{ matrix.service }}:${{ steps.meta.outputs.tag }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+      - name: Push image to ECR
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          docker tag \
+            cloud-commerce/${{ matrix.service }}:${TAG} \
+            ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
+
+          docker push \
+            ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
+
+      - name: Sign image with Cosign
+        uses: sigstore/cosign-installer@v3.9.0
+
+      - name: Cosign sign image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          cosign sign --yes \
+            ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
