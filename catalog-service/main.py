@@ -3,7 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
 app = FastAPI(title="Cloud Commerce Catalog Service", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:9000"],
+    allow_methods=["GET"],
+    allow_headers=["Content-Type", "Authorization"],
+)
 
 products = [
  {"id":"p1","name":"AeroRun X1","description":"Lightweight everyday running shoes with responsive foam.","price":10,"category":"Footwear","image":"https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=85","rating":4.7,"badge":"Best Seller"},
