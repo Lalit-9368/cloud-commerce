@@ -23,13 +23,13 @@ jobs:
           - service: frontend
             context: ./frontend
           - service: auth-service
-            context: ./services/auth-service
+            context: ./auth-service
           - service: catalog-service
-            context: ./services/catalog-service
+            context: ./catalog-service
           - service: checkout-service
-            context: ./services/checkout-service
+            context: ./checkout-service
           - service: payment-service
-            context: ./services/payment-service
+            context: ./payment-service
 
     steps:
       - name: Checkout
@@ -80,20 +80,16 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          docker tag \
-            cloud-commerce/${{ matrix.service }}:${TAG} \
-            ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
+          docker tag             cloud-commerce/${{ matrix.service }}:${TAG}             ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
 
-          docker push \
-            ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
+          docker push             ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
 
-      - name: Sign image with Cosign
+      - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.0
 
-      - name: Cosign sign image
+      - name: Sign image with Cosign
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          cosign sign --yes \
-            ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
+          cosign sign --yes             ${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}
