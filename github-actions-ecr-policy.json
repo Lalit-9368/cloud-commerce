@@ -20,11 +20,11 @@
         "ecr:UploadLayerPart"
       ],
       "Resource": [
-        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-frontend",
-        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-auth-service",
-        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-catalog-service",
-        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-checkout-service",
-        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-payment-service"
+        "arn:aws:ecr:us-east-1:814383264015:repository/cloud-commerce-frontend",
+        "arn:aws:ecr:us-east-1:814383264015:repository/cloud-commerce-auth-service",
+        "arn:aws:ecr:us-east-1:814383264015:repository/cloud-commerce-catalog-service",
+        "arn:aws:ecr:us-east-1:814383264015:repository/cloud-commerce-checkout-service",
+        "arn:aws:ecr:us-east-1:814383264015:repository/cloud-commerce-payment-service"
       ]
     }
   ]
