@@ -15,8 +15,7 @@ jobs:
   release:
     name: Release images to Amazon ECR
     runs-on: ubuntu-latest
-    environment:
-      name: production
+    environment: production
 
     strategy:
       fail-fast: false
