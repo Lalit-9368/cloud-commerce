@@ -1,0 +1,31 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECRLogin",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECRPush",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:CompleteLayerUpload",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Resource": [
+        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-frontend",
+        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-auth-service",
+        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-catalog-service",
+        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-checkout-service",
+        "arn:aws:ecr:*:814383264015:repository/cloud-commerce-payment-service"
+      ]
+    }
+  ]
+}
