@@ -1,7 +1,16 @@
-FROM node:22-alpine
+FROM node:22-alpine3.24
+
 WORKDIR /app
+
 COPY package*.json ./
-RUN npm install --omit=dev
+
+RUN npm install --omit=dev \
+    && rm -rf /usr/local/lib/node_modules/npm \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx
+
 COPY src ./src
+
 EXPOSE 4001
-CMD ["npm","start"]
+
+CMD ["node","src/server.js"]
