@@ -67,6 +67,9 @@ module "eks" {
         service_account = "ebs-csi-controller-sa"
       }]
     }
+    metrics-server = {
+      most_recent = true
+    }
   }
 
 
