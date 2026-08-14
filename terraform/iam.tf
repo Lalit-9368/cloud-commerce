@@ -50,3 +50,30 @@ resource "aws_iam_role_policy_attachment" "github_actions_ecr" {
   role       = "GitHubActionsCloudCommerceDeploy"
   policy_arn = aws_iam_policy.github_actions_ecr.arn
 }
+
+resource "aws_iam_policy" "github_actions_eks" {
+  name        = "GitHubActionsCloudCommerceEKS"
+  description = "EKS access required by Cloud Commerce GitHub Actions"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Sid    = "EKSDescribeCluster"
+        Effect = "Allow"
+
+        Action = [
+          "eks:DescribeCluster"
+        ]
+
+        Resource = "arn:aws:eks:us-east-1:814383264015:cluster/cloud-commerce-prod"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_eks" {
+  role       = "GitHubActionsCloudCommerceDeploy"
+  policy_arn = aws_iam_policy.github_actions_eks.arn
+}
