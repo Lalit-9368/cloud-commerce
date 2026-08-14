@@ -12,6 +12,16 @@ module "eks" {
   endpoint_private_access = true
 
   enable_irsa = true
+  node_security_group_additional_rules = {
+    ingress_frontend_http = {
+      description              = "Node to node frontend HTTP"
+      protocol                 = "tcp"
+      from_port                = 80
+      to_port                  = 80
+      type                     = "ingress"
+      source_security_group_id = "sg-0c685495c5b5a07b1"
+    }
+  }
 
   enable_cluster_creator_admin_permissions = true
   access_entries = {
