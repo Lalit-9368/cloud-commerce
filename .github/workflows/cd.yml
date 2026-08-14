@@ -5,12 +5,23 @@ on:
     branches:
       - main
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
+
+concurrency:
+  group: cloud-commerce-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  EKS_CLUSTER_NAME: cloud-commerce-prod
+  HELM_RELEASE_NAME: cloud-commerce
+  HELM_CHART_PATH: ./helm/cloud-commerce
+  K8S_NAMESPACE: cloud-commerce
 
 jobs:
   release:
@@ -40,11 +51,12 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
 
       - name: Verify AWS identity
-        run: aws sts get-caller-identity
+        run: |
+          aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: ecr
@@ -54,16 +66,25 @@ jobs:
         id: meta
         shell: bash
         run: |
+          set -euo pipefail
+
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            TAG="${GITHUB_REF_NAME}"
           else
-            echo "tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            TAG="${GITHUB_SHA}"
           fi
 
-      - name: Build image
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "Image tag: ${TAG}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for EKS AMD64 nodes
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
+          platforms: linux/amd64
           push: false
           load: true
           tags: cloud-commerce/${{ matrix.service }}:${{ steps.meta.outputs.tag }}
@@ -73,7 +94,7 @@ jobs:
         with:
           image-ref: cloud-commerce/${{ matrix.service }}:${{ steps.meta.outputs.tag }}
           format: table
-          exit-code: '1'
+          exit-code: "1"
           ignore-unfixed: true
           severity: CRITICAL,HIGH
 
@@ -82,12 +103,17 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
+          set -euo pipefail
+
+          IMAGE_NAME="${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}"
+
           docker tag \
             "cloud-commerce/${{ matrix.service }}:${TAG}" \
-            "${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}"
+            "${IMAGE_NAME}"
 
-          docker push \
-            "${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}"
+          docker push "${IMAGE_NAME}"
+
+          echo "Pushed: ${IMAGE_NAME}"
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.0
@@ -97,134 +123,179 @@ jobs:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          cosign sign --yes \
-            "${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}"
+          set -euo pipefail
+
+          IMAGE="${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}"
+
+          cosign sign --yes "${IMAGE}"
+
+          echo "Signed: ${IMAGE}"
 
   deploy:
-    name: Deploy all services to EC2
+    name: Deploy to EKS with Helm
     runs-on: ubuntu-latest
     needs: release
     environment: production
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
 
       - name: Verify AWS identity
-        run: aws sts get-caller-identity
+        run: |
+          aws sts get-caller-identity
+
+      - name: Verify EKS cluster
+        run: |
+          set -euo pipefail
+
+          STATUS="$(
+            aws eks describe-cluster \
+              --region "${AWS_REGION}" \
+              --name "${EKS_CLUSTER_NAME}" \
+              --query 'cluster.status' \
+              --output text
+          )"
+
+          echo "EKS cluster status: ${STATUS}"
+
+          if [[ "${STATUS}" != "ACTIVE" ]]; then
+            echo "ERROR: EKS cluster is not ACTIVE."
+            exit 1
+          fi
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: latest
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+
+      - name: Configure kubectl for EKS
+        run: |
+          set -euo pipefail
+
+          aws eks update-kubeconfig \
+            --region "${AWS_REGION}" \
+            --name "${EKS_CLUSTER_NAME}"
+
+      - name: Verify Kubernetes access
+        run: |
+          set -euo pipefail
+
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set deployment values
         id: meta
         shell: bash
-        env:
-          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
         run: |
           set -euo pipefail
-
-          if [[ -n "${ECR_REGISTRY}" ]]; then
-            echo "registry=${ECR_REGISTRY}" >> "$GITHUB_OUTPUT"
-          else
-            ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-            echo "registry=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
-          fi
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            TAG="${GITHUB_REF_NAME}"
           else
-            echo "tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            TAG="${GITHUB_SHA}"
           fi
 
-      - name: Deploy on EC2 through SSM
-        shell: bash
-        env:
-          IMAGE_TAG: ${{ steps.meta.outputs.tag }}
-          ECR_REGISTRY: ${{ steps.meta.outputs.registry }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+          echo "Deployment tag: ${TAG}"
+          echo "ECR registry: ${{ steps.ecr.outputs.registry }}"
+
+      - name: Helm lint
         run: |
           set -euo pipefail
 
-          if [[ -z "${EC2_INSTANCE_ID}" ]]; then
-            echo "ERROR: GitHub production variable EC2_INSTANCE_ID is not set."
-            exit 1
-          fi
+          helm lint "${HELM_CHART_PATH}"
 
-          if [[ -z "${AWS_REGION}" ]]; then
-            echo "ERROR: GitHub production variable AWS_REGION is not set."
-            exit 1
-          fi
+      - name: Helm render validation
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
 
-          if [[ -z "${ECR_REGISTRY}" ]]; then
-            echo "ERROR: ECR registry could not be determined."
-            exit 1
-          fi
+          helm template \
+            "${HELM_RELEASE_NAME}" \
+            "${HELM_CHART_PATH}" \
+            --namespace "${K8S_NAMESPACE}" \
+            --set-string global.image.registry="${ECR_REGISTRY}" \
+            --set-string frontend.image.tag="${IMAGE_TAG}" \
+            --set-string authService.image.tag="${IMAGE_TAG}" \
+            --set-string catalogService.image.tag="${IMAGE_TAG}" \
+            --set-string checkoutService.image.tag="${IMAGE_TAG}" \
+            --set-string paymentService.image.tag="${IMAGE_TAG}" \
+            > /tmp/cloud-commerce-rendered.yaml
 
-          COMMANDS_JSON="$(python3 - <<'PY'
-          import json
-          import os
+          kubectl apply \
+            --dry-run=server \
+            -f /tmp/cloud-commerce-rendered.yaml
 
-          commands = [
-              "set -euo pipefail",
-              "cd /opt/cloud-commerce",
-              f"export IMAGE_TAG={os.environ['IMAGE_TAG']!r}",
-              f"export AWS_REGION={os.environ['AWS_REGION']!r}",
-              f"export ECR_REGISTRY={os.environ['ECR_REGISTRY']!r}",
-              'aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"',
-              'docker compose pull',
-              'docker compose up -d --remove-orphans',
-              'docker image prune -f'
-          ]
+      - name: Deploy with Helm
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
 
-          print(json.dumps({"commands": commands}))
-          PY
-          )"
+          helm upgrade --install "${HELM_RELEASE_NAME}" "${HELM_CHART_PATH}" \
+            --namespace "${K8S_NAMESPACE}" \
+            --create-namespace \
+            --set-string global.image.registry="${ECR_REGISTRY}" \
+            --set-string frontend.image.tag="${IMAGE_TAG}" \
+            --set-string authService.image.tag="${IMAGE_TAG}" \
+            --set-string catalogService.image.tag="${IMAGE_TAG}" \
+            --set-string checkoutService.image.tag="${IMAGE_TAG}" \
+            --set-string paymentService.image.tag="${IMAGE_TAG}" \
+            --wait \
+            --timeout 10m
 
-          COMMAND_ID="$(
-            aws ssm send-command \
-              --instance-ids "$EC2_INSTANCE_ID" \
-              --document-name "AWS-RunShellScript" \
-              --parameters "$COMMANDS_JSON" \
-              --query "Command.CommandId" \
-              --output text
-          )"
+      - name: Verify deployment
+        run: |
+          set -euo pipefail
 
-          echo "SSM command: ${COMMAND_ID}"
+          kubectl get pods \
+            --namespace "${K8S_NAMESPACE}" \
+            --output wide
 
-          for _ in {1..30}; do
-            STATUS="$(
-              aws ssm get-command-invocation \
-                --command-id "$COMMAND_ID" \
-                --instance-id "$EC2_INSTANCE_ID" \
-                --query "Status" \
-                --output text
-            )"
+          kubectl rollout status deployment/auth-service \
+            --namespace "${K8S_NAMESPACE}" \
+            --timeout=5m
 
-            echo "Deployment status: ${STATUS}"
+          kubectl rollout status deployment/catalog-service \
+            --namespace "${K8S_NAMESPACE}" \
+            --timeout=5m
 
-            case "$STATUS" in
-              Success)
-                aws ssm get-command-invocation \
-                  --command-id "$COMMAND_ID" \
-                  --instance-id "$EC2_INSTANCE_ID" \
-                  --query "StandardOutputContent" \
-                  --output text
-                exit 0
-                ;;
-              Failed|Cancelled|TimedOut|Cancelling)
-                aws ssm get-command-invocation \
-                  --command-id "$COMMAND_ID" \
-                  --instance-id "$EC2_INSTANCE_ID" \
-                  --query "StandardErrorContent" \
-                  --output text
-                exit 1
-                ;;
-            esac
+          kubectl rollout status deployment/checkout-service \
+            --namespace "${K8S_NAMESPACE}" \
+            --timeout=5m
 
-            sleep 10
-          done
+          kubectl rollout status deployment/frontend \
+            --namespace "${K8S_NAMESPACE}" \
+            --timeout=5m
 
-          echo "Deployment timed out."
-          exit 1
+          kubectl rollout status deployment/payment-service \
+            --namespace "${K8S_NAMESPACE}" \
+            --timeout=5m
+
+      - name: Show deployment
+        run: |
+          kubectl get deployments \
+            --namespace "${K8S_NAMESPACE}"
+
+          kubectl get services \
+            --namespace "${K8S_NAMESPACE}"
