@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: checkout-service
+    {{- include "cloud-commerce.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.checkoutService.replicaCount }}
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  selector:
+    matchLabels:
+      app: checkout-service
+
+  template:
+    metadata:
+      labels:
+        app: checkout-service
+
+    spec:
+      containers:
+        - name: checkout-service
+
+          image: "{{ .Values.global.image.registry }}/{{ .Values.checkoutService.image.repository }}:{{ .Values.checkoutService.image.tag }}"
+
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: 4003
+              protocol: TCP
+
+          env:
+            - name: PORT
+              value: "4003"
+
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: JWT_SECRET
+
+            - name: CATALOG_URL
+              value: "http://catalog-service:4002"
+
+            - name: PAYMENT_URL
+              value: "http://payment-service:4004"
+
+          readinessProbe:
+            tcpSocket:
+              port: 4003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          livenessProbe:
+            tcpSocket:
+              port: 4003
+            initialDelaySeconds: 15
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+
+            limits:
+              cpu: 500m
+              memory: 512Mi

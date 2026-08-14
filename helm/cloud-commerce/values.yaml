@@ -1,0 +1,70 @@
+global:
+  namespace: cloud-commerce
+
+  imagePullPolicy: IfNotPresent
+
+  image:
+    registry: "814383264015.dkr.ecr.us-east-1.amazonaws.com"
+
+frontend:
+  replicaCount: 2
+
+  image:
+    repository: cloud-commerce-frontend
+    tag: latest
+
+  service:
+    port: 80
+    targetPort: 80
+
+authService:
+  replicaCount: 2
+
+  image:
+    repository: cloud-commerce-auth-service
+    tag: latest
+
+  service:
+    port: 4001
+    targetPort: 4001
+
+  persistence:
+    enabled: true
+    storageClass: gp3
+    size: 1Gi
+
+catalogService:
+  replicaCount: 2
+
+  image:
+    repository: cloud-commerce-catalog-service
+    tag: latest
+
+  service:
+    port: 4002
+    targetPort: 4002
+
+checkoutService:
+  replicaCount: 2
+
+  image:
+    repository: cloud-commerce-checkout-service
+    tag: latest
+
+  service:
+    port: 4003
+    targetPort: 4003
+
+paymentService:
+  replicaCount: 2
+
+  image:
+    repository: cloud-commerce-payment-service
+    tag: latest
+
+  service:
+    port: 4004
+    targetPort: 4004
+
+secrets:
+  existingSecret: cloud-commerce-secrets

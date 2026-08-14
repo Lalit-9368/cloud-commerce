@@ -1,0 +1,11 @@
+apiVersion: v2
+
+name: cloud-commerce
+
+description: Production Helm chart for Cloud Commerce
+
+type: application
+
+version: 0.1.0
+
+appVersion: "1.0.0"
