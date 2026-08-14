@@ -264,33 +264,70 @@ jobs:
             --wait \
             --timeout 10m
 
-      - name: Verify deployment
-        run: |
-          set -euo pipefail
+            - name: Verify deployment
+              run: |
+                set -euo pipefail
 
-          kubectl get pods \
-            --namespace "${K8S_NAMESPACE}" \
-            --output wide
+                echo "=== Helm Release ==="
+                helm status "${HELM_RELEASE_NAME}" \
+                  --namespace "${K8S_NAMESPACE}"
 
-          kubectl rollout status deployment/auth-service \
-            --namespace "${K8S_NAMESPACE}" \
-            --timeout=5m
+                echo "=== Helm Revision ==="
+                helm history "${HELM_RELEASE_NAME}" \
+                  --namespace "${K8S_NAMESPACE}" \
+                  --max 1
 
-          kubectl rollout status deployment/catalog-service \
-            --namespace "${K8S_NAMESPACE}" \
-            --timeout=5m
+                echo "=== Kubernetes Pods ==="
+                kubectl get pods \
+                  --namespace "${K8S_NAMESPACE}" \
+                  --output wide
 
-          kubectl rollout status deployment/checkout-service \
-            --namespace "${K8S_NAMESPACE}" \
-            --timeout=5m
+                echo "=== Deployment Rollouts ==="
+                kubectl rollout status deployment/auth-service \
+                  --namespace "${K8S_NAMESPACE}" \
+                  --timeout=5m
 
-          kubectl rollout status deployment/frontend \
-            --namespace "${K8S_NAMESPACE}" \
-            --timeout=5m
+                kubectl rollout status deployment/catalog-service \
+                  --namespace "${K8S_NAMESPACE}" \
+                  --timeout=5m
 
-          kubectl rollout status deployment/payment-service \
-            --namespace "${K8S_NAMESPACE}" \
-            --timeout=5m
+                kubectl rollout status deployment/checkout-service \
+                  --namespace "${K8S_NAMESPACE}" \
+                  --timeout=5m
+
+                kubectl rollout status deployment/frontend \
+                  --namespace "${K8S_NAMESPACE}" \
+                  --timeout=5m
+
+                kubectl rollout status deployment/payment-service \
+                  --namespace "${K8S_NAMESPACE}" \
+                  --timeout=5m
+
+                echo "=== HPA Verification ==="
+                kubectl get hpa \
+                  --namespace "${K8S_NAMESPACE}"
+
+                HPA_COUNT="$(kubectl get hpa \
+                  --namespace "${K8S_NAMESPACE}" \
+                  --no-headers | wc -l | tr -d ' ')"
+
+                if [[ "${HPA_COUNT}" -ne 5 ]]; then
+                  echo "ERROR: Expected 5 HPAs, found ${HPA_COUNT}"
+                  exit 1
+                fi
+
+                echo "=== Helm HPA Manifest Verification ==="
+                HPA_MANIFEST_COUNT="$(helm get manifest \
+                  "${HELM_RELEASE_NAME}" \
+                  --namespace "${K8S_NAMESPACE}" |
+                  grep -c '^kind: HorizontalPodAutoscaler$' || true)"
+
+                if [[ "${HPA_MANIFEST_COUNT}" -ne 5 ]]; then
+                  echo "ERROR: Helm release contains ${HPA_MANIFEST_COUNT} HPA manifests; expected 5"
+                  exit 1
+                fi
+
+                echo "Production deployment verification passed."
 
       - name: Show deployment
         run: |
