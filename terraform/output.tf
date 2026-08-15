@@ -27,3 +27,13 @@ output "public_subnets" {
   description = "Public subnet IDs"
   value       = module.vpc.public_subnets
 }
+
+output "rovestore_route53_nameservers" {
+  description = "Route 53 nameservers for roveshop.in"
+  value       = aws_route53_zone.rovestore.name_servers
+}
+
+output "rovestore_acm_certificate_arn" {
+  description = "ACM certificate ARN for roveshop.in"
+  value       = aws_acm_certificate.rovestore.arn
+}
