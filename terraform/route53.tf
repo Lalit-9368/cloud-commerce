@@ -42,3 +42,37 @@ resource "aws_acm_certificate_validation" "rovestore" {
     record.fqdn
   ]
 }
+resource "aws_route53_record" "origin" {
+  zone_id = "Z00687323MJY43TQUC90J"
+  name    = "origin.roveshop.in"
+  type    = "A"
+
+  alias {
+    name                   = "dualstack.k8s-cloudcom-frontend-a5bd147b35-1679533405.us-east-1.elb.amazonaws.com"
+    zone_id                = "Z35SXDOTRQ7X7K"
+    evaluate_target_health = false
+  }
+}
+resource "aws_route53_record" "root" {
+  zone_id = aws_route53_zone.rovestore.zone_id
+  name    = "roveshop.in"
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.rovestore.domain_name
+    zone_id                = aws_cloudfront_distribution.rovestore.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "www" {
+  zone_id = aws_route53_zone.rovestore.zone_id
+  name    = "www.roveshop.in"
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.rovestore.domain_name
+    zone_id                = aws_cloudfront_distribution.rovestore.hosted_zone_id
+    evaluate_target_health = false
+  }
+}

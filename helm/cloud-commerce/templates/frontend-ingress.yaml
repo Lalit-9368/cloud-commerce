@@ -32,3 +32,14 @@ spec:
               name: frontend
               port:
                 number: 80
+
+  - host: origin.roveshop.in
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: frontend
+              port:
+                number: 80
