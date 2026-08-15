@@ -2,10 +2,28 @@ grafana:
   enabled: true
   adminUser: admin
   adminPassword: "CHANGE-ME-BEFORE-PRODUCTION"
+
   service:
     type: ClusterIP
+
   persistence:
     enabled: false
+
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki.observability.svc.cluster.local:3100
+      isDefault: false
+      editable: true
+
+    - name: Tempo
+      type: tempo
+      access: proxy
+      url: http://tempo.observability.svc.cluster.local:3200
+      isDefault: false
+      editable: true
+
   resources:
     requests:
       cpu: 100m
@@ -13,7 +31,6 @@ grafana:
     limits:
       cpu: 500m
       memory: 512Mi
-
 prometheus:
   enabled: true
   prometheusSpec:

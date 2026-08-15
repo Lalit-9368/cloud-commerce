@@ -1,0 +1,34 @@
+tempo:
+  reportingEnabled: false
+
+  metricsGenerator:
+    enabled: false
+
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo
+
+  retention: 1h
+
+persistence:
+  enabled: false
+
+tempoQuery:
+  enabled: false
+
+traces:
+  otlp:
+    http:
+      enabled: true
+    grpc:
+      enabled: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
