@@ -76,6 +76,44 @@ resource "aws_cloudfront_distribution" "rovestore" {
     }
   }
 
+  ordered_cache_behavior {
+    path_pattern           = "/api/*"
+    target_origin_id       = "roveshop-alb"
+    viewer_protocol_policy = "redirect-to-https"
+
+    allowed_methods = [
+      "GET",
+      "HEAD",
+      "OPTIONS",
+      "PUT",
+      "POST",
+      "PATCH",
+      "DELETE"
+    ]
+
+    cached_methods = [
+      "GET",
+      "HEAD"
+    ]
+
+    compress = true
+
+    forwarded_values {
+      query_string = true
+
+      headers = [
+        "Authorization",
+        "Content-Type",
+        "Origin",
+        "Referer"
+      ]
+
+      cookies {
+        forward = "all"
+      }
+    }
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
