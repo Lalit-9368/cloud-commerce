@@ -12,11 +12,11 @@ module "eks" {
   endpoint_private_access = true
 
   enable_irsa = true
-  node_security_group_additional_rules = {
 
-  }
+  node_security_group_additional_rules = {}
 
   enable_cluster_creator_admin_permissions = true
+
   access_entries = {
     github_actions = {
       principal_arn = "arn:aws:iam::814383264015:role/GitHubActionsCloudCommerceDeploy"
@@ -37,6 +37,13 @@ module "eks" {
     vpc-cni = {
       most_recent    = true
       before_compute = true
+
+      configuration_values = jsonencode({
+        env = {
+          ENABLE_PREFIX_DELEGATION = "true"
+          WARM_PREFIX_TARGET       = "1"
+        }
+      })
     }
 
     kube-proxy = {
@@ -60,11 +67,11 @@ module "eks" {
         service_account = "ebs-csi-controller-sa"
       }]
     }
+
     metrics-server = {
       most_recent = true
     }
   }
-
 
   eks_managed_node_groups = {
     default = {
@@ -73,15 +80,14 @@ module "eks" {
       subnet_ids = module.vpc.private_subnets
 
       instance_types = var.node_instance_types
-
-      capacity_type = "ON_DEMAND"
+      capacity_type  = "ON_DEMAND"
 
       min_size     = var.node_min_size
       desired_size = var.node_desired_size
       max_size     = var.node_max_size
 
-      # Explicitly ensure the node role receives the
-      # permissions needed by an IPv4 EKS managed node.
+      max_pods = 110
+
       labels = {
         environment = var.environment
         workload    = "application"
