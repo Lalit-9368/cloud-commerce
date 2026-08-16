@@ -167,7 +167,7 @@ export default function App() {
         key: data.payment.keyId,
         amount: data.payment.order.amount,
         currency: data.payment.order.currency,
-        name: 'NOVA Store',
+        name: 'Rove Shop',
         description: 'Secure checkout',
         order_id: data.payment.order.id,
         prefill: { name: user?.name, email: user?.email },
@@ -216,7 +216,7 @@ export default function App() {
     <div className="app">
       <header className="nav">
         <button className="brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          NOVA<span>STORE</span>
+          ROVE<span>STORE</span>
         </button>
         <div className="search">
           <Search size={18} />
@@ -413,7 +413,7 @@ function AuthModal({ mode, close, onAuthenticated }: { mode: AuthMode; close: ()
     <motion.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.div className="auth" initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }}>
         <button className="close" onClick={close} aria-label="Close authentication dialog"><X /></button>
-        <span className="eyebrow">NOVA ACCOUNT</span>
+        <span className="eyebrow">ROVE ACCOUNT</span>
         <h2>{register ? 'Create your account.' : 'Welcome back.'}</h2>
         <p>{register ? 'Save your bag and checkout faster.' : 'Sign in to continue to checkout.'}</p>
         {error && <div className="form-error">{error}</div>}
