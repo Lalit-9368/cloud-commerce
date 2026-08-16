@@ -48,7 +48,7 @@ resource "aws_route53_record" "origin" {
   type    = "A"
 
   alias {
-    name                   = "dualstack.k8s-cloudcom-frontend-a5bd147b35-1679533405.us-east-1.elb.amazonaws.com"
+    name                   = "dualstack.k8s-cloudcom-frontend-a5bd147b35-1153733148.us-east-1.elb.amazonaws.com"
     zone_id                = "Z35SXDOTRQ7X7K"
     evaluate_target_health = false
   }

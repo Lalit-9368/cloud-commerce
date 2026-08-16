@@ -1,7 +1,3 @@
-data "aws_lb" "frontend" {
-  name = "k8s-cloudcom-frontend-a5bd147b35"
-}
-
 resource "aws_cloudfront_distribution" "rovestore" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -26,8 +22,35 @@ resource "aws_cloudfront_distribution" "rovestore" {
     }
   }
 
+  origin {
+    domain_name              = aws_s3_bucket.roveshop_fallback.bucket_regional_domain_name
+    origin_id                = "roveshop-s3-fallback"
+    origin_access_control_id = aws_cloudfront_origin_access_control.roveshop_fallback.id
+  }
+
+  origin_group {
+    origin_id = "roveshop-origin-failover"
+
+    failover_criteria {
+      status_codes = [
+        500,
+        502,
+        503,
+        504
+      ]
+    }
+
+    member {
+      origin_id = "roveshop-alb"
+    }
+
+    member {
+      origin_id = "roveshop-s3-fallback"
+    }
+  }
+
   default_cache_behavior {
-    target_origin_id       = "roveshop-alb"
+    target_origin_id       = "roveshop-origin-failover"
     viewer_protocol_policy = "redirect-to-https"
 
     allowed_methods = [
@@ -72,6 +95,6 @@ resource "aws_cloudfront_distribution" "rovestore" {
     Project     = "cloud-commerce"
     Environment = "prod"
     ManagedBy   = "Terraform"
-    Phase       = "phase-5a"
+    Phase       = "phase-8"
   }
 }
