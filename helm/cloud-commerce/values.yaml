@@ -22,7 +22,7 @@ authService:
 
   image:
     repository: cloud-commerce-auth-service
-    tag: latest
+    tag: otel
 
   service:
     port: 4001
@@ -38,7 +38,7 @@ catalogService:
 
   image:
     repository: cloud-commerce-catalog-service
-    tag: latest
+    tag: otel-20260816054814
 
   service:
     port: 4002
@@ -49,7 +49,7 @@ checkoutService:
 
   image:
     repository: cloud-commerce-checkout-service
-    tag: latest
+    tag: otel
 
   service:
     port: 4003
@@ -60,7 +60,7 @@ paymentService:
 
   image:
     repository: cloud-commerce-payment-service
-    tag: latest
+    tag: otel
 
   service:
     port: 4004

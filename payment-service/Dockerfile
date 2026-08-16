@@ -13,4 +13,4 @@ COPY src ./src
 
 EXPOSE 4004
 
-CMD ["node","src/server.js"]
+CMD ["node","--require","./src/instrumentation.js","src/server.js"]
