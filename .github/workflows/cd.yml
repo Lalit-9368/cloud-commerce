@@ -300,6 +300,7 @@ jobs:
             --set-string catalogService.image.tag="${IMAGE_TAG}" \
             --set-string checkoutService.image.tag="${IMAGE_TAG}" \
             --set-string paymentService.image.tag="${IMAGE_TAG}" \
+            --force-conflicts \
             --wait \
             --timeout 10m
 
