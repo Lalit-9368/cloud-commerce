@@ -43,7 +43,7 @@ resource "aws_acm_certificate_validation" "rovestore" {
   ]
 }
 resource "aws_route53_record" "origin" {
-  zone_id = "Z00687323MJY43TQUC90J"
+  zone_id = aws_route53_zone.rovestore.zone_id
   name    = "origin.roveshop.in"
   type    = "A"
 

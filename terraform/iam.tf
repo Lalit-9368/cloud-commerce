@@ -1,5 +1,64 @@
-# IAM resources for workload-specific permissions
-# will be added as individual services require them.
+
+data "aws_iam_openid_connect_provider" "github_actions" {
+  arn = "arn:aws:iam::814383264015:oidc-provider/token.actions.githubusercontent.com"
+}
+
+data "aws_iam_policy_document" "github_actions_assume_role" {
+  statement {
+    sid    = "GitHubActionsOIDC"
+    effect = "Allow"
+
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+
+    principals {
+      type = "Federated"
+
+      identifiers = [
+        data.aws_iam_openid_connect_provider.github_actions.arn
+      ]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+
+      values = [
+        "sts.amazonaws.com"
+      ]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+
+      values = [
+        "repo:Lalit-9368/cloud-commerce:environment:production"
+      ]
+    }
+  }
+}
+
+# ============================================================
+# GitHub Actions Deployment Role
+# ============================================================
+
+resource "aws_iam_role" "github_actions_deploy" {
+  name = "GitHubActionsCloudCommerceDeploy"
+
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+  }
+}
+
+# ============================================================
+# GitHub Actions ECR Policy
+# ============================================================
 
 resource "aws_iam_policy" "github_actions_ecr" {
   name        = "GitHubActionsCloudCommerceECR"
@@ -47,9 +106,13 @@ resource "aws_iam_policy" "github_actions_ecr" {
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_ecr" {
-  role       = "GitHubActionsCloudCommerceDeploy"
+  role       = aws_iam_role.github_actions_deploy.name
   policy_arn = aws_iam_policy.github_actions_ecr.arn
 }
+
+# ============================================================
+# GitHub Actions EKS Policy
+# ============================================================
 
 resource "aws_iam_policy" "github_actions_eks" {
   name        = "GitHubActionsCloudCommerceEKS"
@@ -74,6 +137,6 @@ resource "aws_iam_policy" "github_actions_eks" {
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_eks" {
-  role       = "GitHubActionsCloudCommerceDeploy"
+  role       = aws_iam_role.github_actions_deploy.name
   policy_arn = aws_iam_policy.github_actions_eks.arn
 }
