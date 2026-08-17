@@ -57,6 +57,7 @@ jobs:
       - name: Verify AWS identity
         run: |
           set -euo pipefail
+
           aws sts get-caller-identity
 
       - name: Login to Amazon ECR
@@ -106,15 +107,30 @@ jobs:
         run: |
           set -euo pipefail
 
-          IMAGE_NAME="${REGISTRY}/cloud-commerce-${{ matrix.service }}:${TAG}"
+          REPOSITORY="cloud-commerce-${{ matrix.service }}"
+          IMAGE_NAME="${REGISTRY}/${REPOSITORY}:${TAG}"
 
-          docker tag \
-            "cloud-commerce/${{ matrix.service }}:${TAG}" \
-            "${IMAGE_NAME}"
+          if aws ecr describe-images \
+            --region "${AWS_REGION}" \
+            --repository-name "${REPOSITORY}" \
+            --image-ids "imageTag=${TAG}" \
+            >/dev/null 2>&1; then
 
-          docker push "${IMAGE_NAME}"
+            echo "Image already exists in ECR:"
+            echo "${IMAGE_NAME}"
+            echo "Skipping push because the ECR repository uses immutable tags."
 
-          echo "Pushed: ${IMAGE_NAME}"
+          else
+
+            docker tag \
+              "cloud-commerce/${{ matrix.service }}:${TAG}" \
+              "${IMAGE_NAME}"
+
+            docker push "${IMAGE_NAME}"
+
+            echo "Pushed: ${IMAGE_NAME}"
+
+          fi
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.0
@@ -151,6 +167,7 @@ jobs:
       - name: Verify AWS identity
         run: |
           set -euo pipefail
+
           aws sts get-caller-identity
 
       - name: Verify EKS cluster
@@ -201,12 +218,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          kubectl create namespace "${K8S_NAMESPACE}" \
-            --dry-run=client \
-            -o yaml |
-            kubectl apply -f -
+          if ! kubectl get namespace "${K8S_NAMESPACE}" >/dev/null 2>&1; then
+            kubectl create namespace "${K8S_NAMESPACE}"
+          fi
 
-          kubectl get namespace "${K8S_NAMESPACE}"
+          kubectl label namespace "${K8S_NAMESPACE}" \
+            app.kubernetes.io/managed-by=Helm \
+            --overwrite
+
+          kubectl annotate namespace "${K8S_NAMESPACE}" \
+            meta.helm.sh/release-name="${HELM_RELEASE_NAME}" \
+            meta.helm.sh/release-namespace="${K8S_NAMESPACE}" \
+            --overwrite
+
+          kubectl get namespace "${K8S_NAMESPACE}" \
+            --show-labels
 
       - name: Login to Amazon ECR
         id: ecr
@@ -282,15 +308,18 @@ jobs:
           set -euo pipefail
 
           echo "=== Helm Release ==="
+
           helm status "${HELM_RELEASE_NAME}" \
             --namespace "${K8S_NAMESPACE}"
 
           echo "=== Helm Revision ==="
+
           helm history "${HELM_RELEASE_NAME}" \
             --namespace "${K8S_NAMESPACE}" \
             --max 1
 
           echo "=== Deployments ==="
+
           kubectl get deployments \
             --namespace "${K8S_NAMESPACE}"
 
@@ -315,6 +344,7 @@ jobs:
             --timeout=5m
 
           echo "=== HPAs ==="
+
           kubectl get hpa \
             --namespace "${K8S_NAMESPACE}"
 
@@ -332,6 +362,7 @@ jobs:
           fi
 
           echo "=== Helm HPA Manifest Check ==="
+
           HPA_MANIFEST_COUNT="$(
             helm get manifest \
               "${HELM_RELEASE_NAME}" \
@@ -351,9 +382,11 @@ jobs:
           set -euo pipefail
 
           echo "=== Deployments ==="
+
           kubectl get deployments \
             --namespace "${K8S_NAMESPACE}"
 
           echo "=== Services ==="
+
           kubectl get services \
             --namespace "${K8S_NAMESPACE}"
