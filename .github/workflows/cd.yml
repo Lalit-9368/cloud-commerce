@@ -56,6 +56,7 @@ jobs:
 
       - name: Verify AWS identity
         run: |
+          set -euo pipefail
           aws sts get-caller-identity
 
       - name: Login to Amazon ECR
@@ -149,6 +150,7 @@ jobs:
 
       - name: Verify AWS identity
         run: |
+          set -euo pipefail
           aws sts get-caller-identity
 
       - name: Verify EKS cluster
@@ -195,6 +197,17 @@ jobs:
           kubectl cluster-info
           kubectl get nodes
 
+      - name: Ensure deployment namespace exists
+        run: |
+          set -euo pipefail
+
+          kubectl create namespace "${K8S_NAMESPACE}" \
+            --dry-run=client \
+            -o yaml |
+            kubectl apply -f -
+
+          kubectl get namespace "${K8S_NAMESPACE}"
+
       - name: Login to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -228,18 +241,6 @@ jobs:
           IMAGE_TAG: ${{ steps.meta.outputs.tag }}
         run: |
           set -euo pipefail
-
-          cleanup_namespace() {
-            if kubectl get namespace "${K8S_NAMESPACE}" >/dev/null 2>&1; then
-              kubectl delete namespace "${K8S_NAMESPACE}" \
-                --wait=true \
-                --timeout=2m
-            fi
-          }
-
-          trap cleanup_namespace EXIT
-
-          kubectl create namespace "${K8S_NAMESPACE}"
 
           helm template \
             "${HELM_RELEASE_NAME}" \
@@ -317,9 +318,13 @@ jobs:
           kubectl get hpa \
             --namespace "${K8S_NAMESPACE}"
 
-          HPA_COUNT="$(kubectl get hpa \
-            --namespace "${K8S_NAMESPACE}" \
-            --no-headers | wc -l | tr -d ' ')"
+          HPA_COUNT="$(
+            kubectl get hpa \
+              --namespace "${K8S_NAMESPACE}" \
+              --no-headers |
+            wc -l |
+            tr -d ' '
+          )"
 
           if [[ "${HPA_COUNT}" -ne 5 ]]; then
             echo "ERROR: Expected 5 HPAs, found ${HPA_COUNT}"
@@ -327,10 +332,12 @@ jobs:
           fi
 
           echo "=== Helm HPA Manifest Check ==="
-          HPA_MANIFEST_COUNT="$(helm get manifest \
-            "${HELM_RELEASE_NAME}" \
-            --namespace "${K8S_NAMESPACE}" |
-            grep -c '^kind: HorizontalPodAutoscaler$' || true)"
+          HPA_MANIFEST_COUNT="$(
+            helm get manifest \
+              "${HELM_RELEASE_NAME}" \
+              --namespace "${K8S_NAMESPACE}" |
+            grep -c '^kind: HorizontalPodAutoscaler$' || true
+          )"
 
           if [[ "${HPA_MANIFEST_COUNT}" -ne 5 ]]; then
             echo "ERROR: Expected 5 HPA manifests in Helm release, found ${HPA_MANIFEST_COUNT}"
@@ -341,8 +348,12 @@ jobs:
 
       - name: Show deployment
         run: |
+          set -euo pipefail
+
+          echo "=== Deployments ==="
           kubectl get deployments \
             --namespace "${K8S_NAMESPACE}"
 
+          echo "=== Services ==="
           kubectl get services \
             --namespace "${K8S_NAMESPACE}"
