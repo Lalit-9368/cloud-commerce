@@ -34,7 +34,7 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       variable = "token.actions.githubusercontent.com:sub"
 
       values = [
-        "repo:Lalit-9368/cloud-commerce:environment:production"
+        "repo:Lalit-9368@236426839/cloud-commerce@1332483251:environment:production"
       ]
     }
   }
