@@ -229,6 +229,18 @@ jobs:
         run: |
           set -euo pipefail
 
+          cleanup_namespace() {
+            if kubectl get namespace "${K8S_NAMESPACE}" >/dev/null 2>&1; then
+              kubectl delete namespace "${K8S_NAMESPACE}" \
+                --wait=true \
+                --timeout=2m
+            fi
+          }
+
+          trap cleanup_namespace EXIT
+
+          kubectl create namespace "${K8S_NAMESPACE}"
+
           helm template \
             "${HELM_RELEASE_NAME}" \
             "${HELM_CHART_PATH}" \
@@ -263,6 +275,7 @@ jobs:
             --set-string paymentService.image.tag="${IMAGE_TAG}" \
             --wait \
             --timeout 10m
+
       - name: Verify deployment
         run: |
           set -euo pipefail
@@ -324,7 +337,8 @@ jobs:
             exit 1
           fi
 
-          echo "Production deployment verification passed."    
+          echo "Production deployment verification passed."
+
       - name: Show deployment
         run: |
           kubectl get deployments \
